@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Animal Scanner</title>
+<meta name="description" content="Scan animals and insects you find in real life, and build your collection!">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.85em%22 font-size=%2290%22>🐾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ============ RESET & BASE ============ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #050d08;
+    color: #f4efe0;
+    font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  button { font-family: inherit; border: none; background: none; cursor: pointer; color: inherit; }
+  a { color: inherit; text-decoration: none; }
+  ul { list-style: none; }
+  img { max-width: 100%; display: block; }
+  input { font-family: inherit; }
+  :focus-visible { outline: 2px solid #e9c468; outline-offset: 2px; border-radius: 4px; }
+
+  /* ============ DESIGN TOKENS ============ */
+  :root{
+    --canopy: #0a1d14;       /* base background */
+    --canopy-deep: #07150e;
+    --moss: #14301f;         /* card surface */
+    --fern: #1b3d27;         /* raised surface (chips, inputs) */
+    --line: rgba(233, 198, 104, 0.16);
+    --line-strong: rgba(233, 198, 104, 0.34);
+
+    --gold: #e9c468;
+    --gold-bright: #f7da8e;
+    --gold-deep: #b9883a;
+
+    --parchment: #f4efe0;
+    --ink-soft: #aac3ad;
+    --ink-faint: #6f8c76;
+
+    --common: #8fd19e;
+    --uncommon: #7ec3e0;
+    --rare: #e9c468;
+    --caution: #e2916b;
+
+    --r-xl: 28px;
+    --r-lg: 22px;
+    --r-md: 16px;
+    --r-sm: 11px;
+
+    --shadow-md: 0 8px 22px rgba(0,0,0,0.35);
+    --shadow-lg: 0 18px 44px rgba(0,0,0,0.5);
+
+    --font-display: 'Fredoka', system-ui, sans-serif;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  /* ============ APP SHELL ============ */
+  .app-shell {
+    max-width: 480px;
+    margin: 0 auto;
+    height: 100vh;
+    height: 100dvh;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(233,198,104,0.10), transparent 60%),
+      linear-gradient(180deg, var(--canopy-deep), var(--canopy) 18%);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+  @media (min-width: 481px) {
+    body { display: flex; justify-content: center; }
+  }
+
+  /* subtle texture */
+  .app-shell::before{
+    content:"";
+    position:absolute; inset:0; pointer-events:none; z-index:0;
+    background-image: radial-gradient(rgba(233,198,104,0.10) 1px, transparent 1px);
+    background-size: 18px 18px;
+    opacity: 0.10;
+  }
+
+  /* ============ DEMO BANNER ============ */
+  .demo-banner{
+    position: relative; z-index: 2;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, var(--fern), var(--moss));
+    border-bottom: 1px solid var(--line);
+    color: var(--gold-bright);
+    font-size: 12.5px;
+    font-weight: 700;
+    text-align: center;
+    padding: 7px 14px;
+    letter-spacing: 0.2px;
+  }
+  .demo-banner span.dim{ color: var(--ink-soft); font-weight: 600; }
+
+  /* ============ SCREENS ============ */
+  .screens{
+    position: relative; z-index: 1;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .screens::-webkit-scrollbar{ display: none; }
+  .screen{
+    display: none;
+    padding: 22px 20px 36px;
+  }
+  .screen.active{
+    display: block;
+    animation: fadeInUp 0.32s ease both;
+  }
+
+  /* ============ SHARED BITS ============ */
+  .section-label{
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--parchment);
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn{
+    border-radius: var(--r-md);
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 14px 18px;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn:active{ transform: scale(0.97); }
+  .btn:disabled{ opacity: 0.55; cursor: default; transform: none; }
+  .btn-primary{
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold-deep));
+    color: #20290f;
+    box-shadow: 0 10px 24px rgba(233,198,104,0.28);
+  }
+  .btn-secondary{
+    background: var(--fern);
+    color: var(--parchment);
+    border: 1px solid var(--line-strong);
+  }
+  .btn-ghost{
+    background: transparent;
+    color: var(--ink-soft);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    padding: 8px;
+  }
+  .btn-block{ width: 100%; }
+  .row-2{ display: flex; gap: 10px; }
+  .row-2 > *{ flex: 1; }
+
+  /* ============ HOME SCREEN ============ */
+  .home-header{ text-align: center; padding: 8px 0 22px; }
+  .logo-badge{
+    width: 64px; height: 64px; border-radius: 20px;
+    background: linear-gradient(160deg, var(--gold-bright), var(--gold-deep));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; margin: 0 auto 14px;
+    box-shadow: 0 10px 26px rgba(233,198,104,0.30);
+    transform: rotate(-4deg);
+  }
+  .app-title{
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(1.5rem, 6vw, 1.9rem);
+    color: var(--parchment);
+    letter-spacing: 0.2px;
+  }
+  .app-tagline{
+    color: var(--ink-soft);
+    font-size: 0.88rem;
+    margin-top: 6px;
+  }
+
+  .progress-card{
+    background: var(--moss);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .progress-top{
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .progress-top-label{ font-size: 0.82rem; color: var(--ink-soft); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+  .progress-count{ font-family: var(--font-display); font-size: 1.05rem; color: var(--gold-bright); font-weight: 600; }
+  .progress-track{
+    height: 12px; border-radius: 999px; background: var(--canopy-deep);
+    overflow: hidden; border: 1px solid var(--line);
+  }
+  .progress-fill{
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright));
+    transition: width 0.6s cubic-bezier(.22,1,.36,1);
+    width: 0%;
+  }
+  .complete-banner{
+    margin-top: 14px; padding: 10px 12px;
+    background: rgba(233,198,104,0.12);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--r-sm);
+    font-size: 0.83rem; color: var(--gold-bright); font-weight: 700;
+    text-align: center;
+  }
+
+  .scan-cta{
+    width: 100%;
+    padding: 20px;
+    border-radius: var(--r-xl);
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    margin-bottom: 26px;
+    animation: ctaGlow 3.2s ease-in-out infinite;
+  }
+
+  /* ============ SCAN SCREEN ============ */
+  .screen-header{ margin-bottom: 18px; }
+  .screen-title{
+    font-family: var(--font-display); font-weight: 600;
+    font-size: 1.4rem; color: var(--parchment);
+  }
+  .screen-sub{ color: var(--ink-soft); font-size: 0.88rem; margin-top: 4px; }
+
+  .scan-visual{
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    border-radius: var(--r-xl);
+    background: var(--canopy-deep);
+    border: 2px solid var(--line-strong);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .scan-perm{
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 24px; text-align: center;
+  }
+  .scan-icon{ font-size: 56px; opacity: 0.75; }
+  .scan-perm-note{ font-size: 0.78rem; color: var(--ink-faint); max-width: 240px; line-height: 1.45; }
+  #scan-video{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #scan-video.mirrored{ transform: scaleX(-1); }
+  #scan-preview-img{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .flip-btn{
+    position: absolute; top: 12px; right: 12px; z-index: 3;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(7,21,14,0.6); border: 1px solid var(--line-strong);
+    font-size: 20px; display: flex; align-items: center; justify-content: center;
+    transition: transform 0.25s ease;
+  }
+  .flip-btn:active{ transform: rotate(180deg); }
+  .scan-spinner{
+    position: absolute; z-index: 2;
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 5px solid var(--fern); border-top-color: var(--gold);
+    animation: spin 0.9s linear infinite;
+  }
+  .scan-status{
+    text-align: center; margin-top: 14px; min-height: 22px;
+    font-weight: 700; color: var(--gold-bright); font-size: 0.9rem;
+  }
+  .shutter-btn{
+    display: block; margin: 14px auto 0;
+    width: 74px; height: 74px; border-radius: 50%;
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold-deep));
+    border: 4px solid var(--parchment);
+    box-shadow: 0 10px 26px rgba(233,198,104,0.35);
+    transition: transform 0.12s ease;
+  }
+  .shutter-btn:active{ transform: scale(0.9); }
+  #captured-actions{ margin-top: 16px; }
+  .no-photo-link{ display: block; text-align: center; margin-top: 14px; }
+  .ai-caption{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.76rem; font-weight: 700; color: var(--ink-soft);
+    background: var(--fern); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 10px; margin-bottom: 14px;
+  }
+  .discovered-line{
+    margin-top: 12px; font-size: 0.84rem; font-weight: 800;
+    color: var(--gold-bright); text-align: center;
+  }
+  [hidden]{ display: none !important; }
+
+  /* ============ RESULT OVERLAY ============ */
+  .overlay{
+    position: absolute; inset: 0; z-index: 50;
+    display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(5,10,7,0);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease, background 0.25s ease;
+  }
+  .overlay.open{
+    opacity: 1; pointer-events: auto;
+    background: rgba(5,10,7,0.6);
+  }
+  .result-card{
+    width: 100%; max-height: 94%;
+    background: var(--moss);
+    border-radius: 28px 28px 0 0;
+    border-top: 1px solid var(--line-strong);
+    display: flex; flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.38s cubic-bezier(.22,1,.36,1);
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
+  }
+  .overlay.open .result-card{ transform: translateY(0); }
+  .sheet-handle{
+    width: 40px; height: 5px; border-radius: 999px;
+    background: var(--line-strong);
+    margin: 10px auto 2px;
+  }
+  .result-header{
+    display: flex; justify-content: flex-end; padding: 6px 14px;
+  }
+  .result-close{
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--fern); font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft);
+  }
+  .result-content{
+    overflow-y: auto; padding: 4px 22px 18px;
+    scrollbar-width: none;
+  }
+  .result-content::-webkit-scrollbar{ display: none; }
+
+  .result-photo-wrap{
+    position: relative;
+    width: 100%; aspect-ratio: 4/3;
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    background: linear-gradient(160deg, var(--fern), var(--canopy-deep));
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+    animation: popIn 0.4s cubic-bezier(.22,1.4,.36,1) both;
+  }
+  #result-photo{ width: 100%; height: 100%; object-fit: cover; }
+  .result-emoji-fallback{ font-size: 88px; }
+
+  .new-badge{
+    position: absolute; top: 12px; left: 12px;
+    background: var(--caution);
+    color: #2a1408;
+    font-family: var(--font-display);
+    font-weight: 700; font-size: 0.78rem;
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.35);
+    transform: rotate(-8deg);
+    letter-spacing: 0.5px;
+    animation: bounceBadge 1.8s ease-in-out infinite;
+  }
+
+  .result-name-row{ display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .result-name{ font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; color: var(--parchment); }
+
+  .rarity-pill{
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.72rem; font-weight: 800; letter-spacing: 0.6px;
+    padding: 5px 11px; border-radius: 999px; white-space: nowrap;
+    text-transform: uppercase;
+  }
+  .rarity-common{ background: rgba(143,209,158,0.16); color: var(--common); border: 1px solid rgba(143,209,158,0.4); }
+  .rarity-uncommon{ background: rgba(126,195,224,0.16); color: var(--uncommon); border: 1px solid rgba(126,195,224,0.4); }
+  .rarity-rare{ background: rgba(233,198,104,0.18); color: var(--gold-bright); border: 1px solid rgba(233,198,104,0.5); box-shadow: 0 0 16px rgba(233,198,104,0.25); }
+
+  .result-category{ color: var(--ink-soft); font-size: 0.85rem; font-weight: 700; margin-bottom: 14px; }
+
+  .info-row{
+    display: flex; gap: 10px; padding: 10px 0;
+    border-top: 1px solid var(--line);
+    font-size: 0.86rem;
+  }
+  .info-row:last-of-type{ border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .info-icon{ font-size: 1.1rem; flex-shrink: 0; }
+  .info-text-label{ color: var(--ink-faint); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+  .info-text-value{ color: var(--parchment); line-height: 1.4; }
+
+  .facts-card{
+    background: var(--fern); border-radius: var(--r-md);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .facts-title{ font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; margin-bottom: 10px; color: var(--gold-bright); }
+  .facts-list li{
+    display: flex; gap: 8px; font-size: 0.87rem; line-height: 1.45;
+    color: var(--parchment); margin-bottom: 9px;
+  }
+  .facts-list li:last-child{ margin-bottom: 0; }
+  .facts-list li::before{ content: "🐾"; flex-shrink: 0; font-size: 0.8rem; margin-top: 2px; }
+
+  .already-have-note{
+    background: var(--fern); border: 1px dashed var(--line-strong);
+    border-radius: var(--r-md); padding: 12px 14px;
+    font-size: 0.86rem; color: var(--ink-soft); text-align: center;
+  }
+
+  .result-footer{
+    padding: 14px 22px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--moss);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .confetti-zone{ position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 5; }
+  .confetti-piece{
+    position: absolute; width: 8px; height: 8px; border-radius: 2px;
+    animation: confettiBurst 0.8s ease-out forwards;
+  }
+
+  /* ============ COLLECTION SCREEN ============ */
+  .collection-summary{
+    background: var(--moss); border: 1px solid var(--line);
+    border-radius: var(--r-md); padding: 13px 16px;
+    font-size: 0.88rem; font-weight: 700; color: var(--gold-bright);
+    margin-bottom: 16px; text-align: center;
+  }
+  .filter-row{
+    display: flex; gap: 8px; overflow-x: auto; padding-bottom: 14px;
+    scrollbar-width: none;
+  }
+  .filter-row::-webkit-scrollbar{ display: none; }
+  .filter-chip{
+    flex-shrink: 0; padding: 8px 14px; border-radius: 999px;
+    background: var(--fern); border: 1px solid var(--line);
+    font-size: 0.8rem; font-weight: 700; color: var(--ink-soft);
+    white-space: nowrap; transition: all 0.15s ease;
+  }
+  .filter-chip.active{
+    background: var(--gold); color: #20290f; border-color: var(--gold);
+  }
+
+  .collection-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+  }
+  .critter-card{
+    position: relative;
+    background: var(--moss); border: 1px solid var(--line);
+    border-top: 3px solid var(--line);
+    border-radius: var(--r-md); padding: 16px 8px 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    text-align: center; min-height: 128px; justify-content: center;
+    animation: fadeInUp 0.3s ease both;
+  }
+  .critter-sparkle{ position: absolute; top: 6px; right: 8px; font-size: 0.8rem; }
+  .critter-card.found.rarity-common-card{ border-top-color: var(--common); }
+  .critter-card.found.rarity-uncommon-card{ border-top-color: var(--uncommon); }
+  .critter-card.found.rarity-rare-card{ border-top-color: var(--rare); box-shadow: 0 0 18px rgba(233,198,104,0.12); }
+  .critter-emoji{ font-size: 34px; line-height: 1; }
+  .critter-emoji.placeholder{ opacity: 0.3; font-size: 30px; }
+  .critter-name{ font-weight: 800; font-size: 0.78rem; color: var(--parchment); }
+  .critter-card.missing .critter-name{ color: var(--ink-faint); }
+  .critter-stars{ font-size: 0.68rem; letter-spacing: 1px; }
+  .critter-card.missing .critter-stars{ color: var(--ink-faint); opacity: 0.6; }
+  .critter-hint{ font-size: 0.66rem; color: var(--ink-faint); line-height: 1.3; margin-top: 2px; }
+
+  .reset-section{ margin-top: 26px; text-align: center; }
+
+  /* ============ TAB BAR ============ */
+  .tab-bar{
+    position: relative; z-index: 10; flex-shrink: 0;
+    display: flex;
+    background: var(--canopy-deep);
+    border-top: 1px solid var(--line);
+    padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  }
+  .tab-btn{
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 6px 2px; border-radius: var(--r-sm);
+    color: var(--ink-faint); font-size: 0.68rem; font-weight: 700;
+    transition: color 0.15s ease, transform 0.15s ease;
+  }
+  .tab-btn .tab-icon{ font-size: 20px; transition: transform 0.15s ease; }
+  .tab-btn.active{ color: var(--gold-bright); }
+  .tab-btn.active .tab-icon{ transform: translateY(-2px) scale(1.08); }
+
+  /* ============ KEYFRAMES ============ */
+  @keyframes fadeInUp{ from{ opacity:0; transform: translateY(10px); } to{ opacity:1; transform: translateY(0); } }
+  @keyframes popIn{ from{ opacity:0; transform: scale(0.88); } to{ opacity:1; transform: scale(1); } }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+  @keyframes bounceBadge{ 0%,100%{ transform: rotate(-8deg) translateY(0); } 50%{ transform: rotate(-4deg) translateY(-3px); } }
+  @keyframes ctaGlow{ 0%,100%{ box-shadow: 0 10px 24px rgba(233,198,104,0.28); } 50%{ box-shadow: 0 10px 32px rgba(233,198,104,0.48); } }
+  @keyframes confettiBurst{ to{ transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } }
+
+  /* ============ SMALL SCREEN TWEAKS ============ */
+  @media (max-width: 360px){
+    .result-name{ font-size: 1.3rem; }
+    .collection-grid{ grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="demo-banner" id="mode-banner">🧪 Demo Mode <span class="dim">— scans are pretend, just for fun!</span></div>
+
+  <main class="screens">
+
+    <!-- ===================== HOME ===================== -->
+    <section id="screen-home" class="screen active">
+      <div class="home-header">
+        <div class="logo-badge">🐾</div>
+        <h1 class="app-title">Animal Scanner</h1>
+        <p class="app-tagline">Discover the wild world around you 🌿</p>
+      </div>
+
+      <div class="progress-card">
+        <div class="progress-top">
+          <span class="progress-top-label">Your Progress</span>
+          <span class="progress-count" id="progress-label">0 / 16 Found</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="discovered-line" id="discovered-line" hidden>✨ +0 new species discovered!</div>
+        <div class="complete-banner" id="complete-banner" hidden>🎉 Amazing! You've scanned every critter — true Animal Scanner champion!</div>
+      </div>
+
+      <button class="btn btn-primary scan-cta" id="home-scan-btn">📷 Scan an Animal</button>
+    </section>
+
+    <!-- ===================== SCAN ===================== -->
+    <section id="screen-scan" class="screen">
+      <div class="screen-header">
+        <h2 class="screen-title">Scan a Critter</h2>
+        <p class="screen-sub">Point your camera at a real animal or bug and snap a photo.</p>
+      </div>
+
+      <div class="scan-visual" id="scan-frame">
+        <div class="scan-perm" id="scan-perm">
+          <div class="scan-icon">📸</div>
+          <button class="btn btn-primary" id="enable-camera-btn">📸 Start Camera</button>
+          <p class="scan-perm-note">Your camera opens right here in the app — nothing is saved until you scan.</p>
+        </div>
+        <video id="scan-video" autoplay playsinline muted hidden></video>
+        <img id="scan-preview-img" alt="Your photo" hidden>
+        <div class="scan-spinner" id="scan-spinner" hidden></div>
+        <button class="flip-btn" id="flip-btn" hidden aria-label="Flip camera">🔄</button>
+      </div>
+      <p class="scan-status" id="scan-status">Tap the button to open your camera</p>
+
+      <button class="shutter-btn" id="shutter-btn" hidden aria-label="Take photo"></button>
+
+      <div class="row-2" id="captured-actions" hidden>
+        <button class="btn btn-secondary" id="retake-btn">↩︎ Retake</button>
+        <button class="btn btn-primary" id="scan-it-btn">🔍 Scan It!</button>
+      </div>
+
+      <a href="#" class="no-photo-link btn-ghost" id="upload-link">No camera? Upload a photo →</a>
+      <a href="#" class="no-photo-link btn-ghost" id="pretend-link" hidden>🎲 Try a pretend scan instead →</a>
+
+      <input type="file" id="photo-input" accept="image/*" capture="environment" hidden>
+    </section>
+
+    <!-- ===================== COLLECTION ===================== -->
+    <section id="screen-collection" class="screen">
+      <div class="screen-header">
+        <h2 class="screen-title">Your Collection</h2>
+      </div>
+      <div class="collection-summary" id="collection-summary">You've found 0 of 16 — 16 left to discover!</div>
+
+      <div class="filter-row" id="filter-row">
+        <button class="filter-chip active" data-filter="All">🌍 All</button>
+        <button class="filter-chip" data-filter="Discovered" id="discovered-chip" hidden>✨ New Finds</button>
+        <button class="filter-chip" data-filter="Mammal">🐾 Mammal</button>
+        <button class="filter-chip" data-filter="Bird">🪶 Bird</button>
+        <button class="filter-chip" data-filter="Insect">🐛 Insect</button>
+        <button class="filter-chip" data-filter="Reptile">🦎 Reptile</button>
+        <button class="filter-chip" data-filter="Arachnid">🕸️ Arachnid</button>
+        <button class="filter-chip" data-filter="Amphibian">💧 Amphibian</button>
+      </div>
+
+      <div class="collection-grid" id="collection-grid"></div>
+
+      <div class="reset-section">
+        <button class="btn btn-secondary" id="reset-btn">🔄 Reset Collection</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================== RESULT OVERLAY ===================== -->
+  <div class="overlay" id="result-overlay">
+    <div class="result-card">
+      <div class="sheet-handle"></div>
+      <div class="result-header">
+        <button class="result-close" id="result-close-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="result-content">
+        <div class="result-photo-wrap" id="confetti-zone">
+          <img id="result-photo" alt="Your scanned critter" hidden>
+          <div class="result-emoji-fallback" id="result-emoji-fallback"></div>
+          <div class="new-badge" id="new-badge" hidden>NEW!</div>
+        </div>
+
+        <div class="result-name-row">
+          <h3 class="result-name" id="result-name">—</h3>
+          <span class="rarity-pill" id="result-rarity">—</span>
+        </div>
+        <div class="result-category" id="result-category">—</div>
+        <div class="ai-caption" id="ai-caption" hidden>🤖 Identified by Claude</div>
+
+        <div class="info-row">
+          <span class="info-icon">🏞️</span>
+          <div><div class="info-text-label">Habitat</div><div class="info-text-value" id="result-habitat">—</div></div>
+        </div>
+        <div class="info-row">
+          <span class="info-icon">🛟</span>
+          <div><div class="info-text-label">Good to know</div><div class="info-text-value" id="result-safety">—</div></div>
+        </div>
+
+        <div class="facts-card">
+          <div class="facts-title">🤓 Cool Facts</div>
+          <ul class="facts-list" id="result-facts"></ul>
+        </div>
+
+        <div class="already-have-note" id="already-have-note" hidden>You already found one of these before — nice spot anyway! 👀</div>
+      </div>
+      <div class="result-footer">
+        <button class="btn btn-primary btn-block" id="add-collection-btn">✚ Add to Collection</button>
+        <div class="row-2">
+          <button class="btn btn-secondary" id="scan-another-btn">🔄 Scan Another</button>
+          <button class="btn btn-secondary" id="result-done-btn">📚 View Collection</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TAB BAR ===================== -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-screen="home"><span class="tab-icon">🏠</span><span>Home</span></button>
+    <button class="tab-btn" data-screen="scan"><span class="tab-icon">📷</span><span>Scan</span></button>
+    <button class="tab-btn" data-screen="collection"><span class="tab-icon">📚</span><span>Collection</span></button>
+  </nav>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var STORAGE_KEY = 'animalScannerCollectionV1';
+  var DISCOVERED_KEY = 'animalScannerDiscoveredV1';
+
+  /* ============ CLAUDE AI BACKEND ============ */
+  // Paste your deployed Supabase Edge Function URL here to turn on real AI scans.
+  // Example: 'https://abcdefghijkl.supabase.co/functions/v1/claude-proxy'
+  // Leave it '' and the app runs in Demo Mode (pretend scans).
+  var BACKEND_URL = '';
+
+  function aiReady(){ return !!BACKEND_URL; }
+
+  function anthropicMessages(body){
+    return fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(resp){
+      return resp.json().then(function(data){
+        if (!resp.ok || data.error) throw new Error((data.error && data.error.message) || ('AI request failed (' + resp.status + ')'));
+        return data;
+      });
+    });
+  }
+
+  // Structured-output schema: guarantees Claude replies with valid JSON in this exact shape
+  var ID_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['is_animal', 'name', 'emoji', 'category', 'rarity', 'habitat', 'safety', 'facts', 'hint'],
+    properties: {
+      is_animal: { type: 'boolean' },
+      name: { type: 'string' },
+      emoji: { type: 'string' },
+      category: { type: 'string', enum: ['Mammal', 'Bird', 'Insect', 'Reptile', 'Amphibian', 'Arachnid', 'Fish', 'Other'] },
+      rarity: { type: 'string', enum: ['Common', 'Uncommon', 'Rare'] },
+      habitat: { type: 'string' },
+      safety: { type: 'string' },
+      facts: { type: 'array', items: { type: 'string' } },
+      hint: { type: 'string' }
+    }
+  };
+
+  var ID_PROMPT = 'You are the brain of "Animal Scanner", a kids\' critter-collecting app. ' +
+    'Identify the main animal, bird, insect, or other creature in the photo. ' +
+    'Use the exact common species name (like "Red Fox", not just "fox"). ' +
+    'Fill in every field: a single fitting emoji; the best-matching category; ' +
+    'rarity as how rare it is for a kid to spot one outdoors; ' +
+    'habitat as one friendly sentence about where it lives; ' +
+    'safety as one sentence about whether it is safe to be near; ' +
+    'exactly 4 short, cool, kid-friendly facts; ' +
+    'and hint as one sentence about where to find one. ' +
+    'If the photo has no real creature in it (or only a person), set is_animal to false and put short placeholder text in the other fields.';
+
+  function identifyWithClaude(dataURL){
+    var m = dataURL.match(/^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i);
+    if (!m) return Promise.reject(new Error('Bad photo data'));
+    return anthropicMessages({
+      model: 'claude-opus-4-8',
+      max_tokens: 1024,
+      output_config: { format: { type: 'json_schema', schema: ID_SCHEMA } },
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } },
+          { type: 'text', text: ID_PROMPT }
+        ]
+      }]
+    }).then(function(d){
+      if (d.stop_reason === 'refusal') throw new Error('The scanner could not look at this photo.');
+      var text = '';
+      (d.content || []).forEach(function(b){ if (b.type === 'text' && b.text) text += b.text; });
+      return JSON.parse(text);
+    });
+  }
+
+  /* ============ DATA ============ */
+  var CRITTERS = [
+    {
+      id: "red-fox", name: "Red Fox", emoji: "🦊", category: "Mammal", rarity: "Common",
+      habitat: "Forests, grasslands, farmland, and even quiet neighborhoods",
+      safety: "Shy around people — safe to admire from a distance.",
+      facts: [
+        "Red foxes can hear a mouse squeak from about 100 feet away.",
+        "They may use Earth's magnetic field to help judge distance when pouncing on hidden prey.",
+        "A fox's bushy tail helps it balance and stay warm, like a built-in blanket.",
+        "Foxes can make more than 40 different sounds to talk to each other."
+      ],
+      hint: "Check woods, fields, or quiet backyards around sunrise or sunset."
+    },
+    {
+      id: "white-tailed-deer", name: "White-Tailed Deer", emoji: "🦌", category: "Mammal", rarity: "Common",
+      habitat: "Woodlands, meadows, and the edges of parks",
+      safety: "Gentle plant-eaters — give them space, especially if babies are near.",
+      facts: [
+        "A white-tailed deer flashes its tail up like a warning flag when it senses danger.",
+        "Fawns are born with almost no scent, which helps hide them from predators.",
+        "They can leap over obstacles taller than 8 feet in a single bound.",
+        "Their big ears can rotate independently to listen in different directions at once."
+      ],
+      hint: "Look along quiet forest trails or grassy clearings in early morning."
+    },
+    {
+      id: "raccoon", name: "Raccoon", emoji: "🦝", category: "Mammal", rarity: "Common",
+      habitat: "Forests, parks, and almost any neighborhood with trees",
+      safety: "Clever but wild — never feed or touch a raccoon you find.",
+      facts: [
+        "Raccoons have super sensitive front paws that work a bit like hands.",
+        "They're excellent problem-solvers and can remember how to open a latch for years.",
+        "A raccoon's dark eye patches may help reduce glare and improve night vision.",
+        "They're mostly active at night and rest through much of the day."
+      ],
+      hint: "They love exploring after dark near trees, parks, or bins."
+    },
+    {
+      id: "eastern-gray-squirrel", name: "Eastern Gray Squirrel", emoji: "🐿️", category: "Mammal", rarity: "Common",
+      habitat: "Trees in forests, parks, and backyards",
+      safety: "Totally harmless — just don't try to grab one!",
+      facts: [
+        "Squirrels plant thousands of new trees every year by forgetting buried acorns.",
+        "They can leap distances of more than 6 feet between branches.",
+        "A squirrel's tail helps it balance and wraps around it like a blanket in winter.",
+        "They sometimes fake-bury a nut to trick watching squirrels into looking elsewhere."
+      ],
+      hint: "Look up! They're usually darting along tree branches nearby."
+    },
+    {
+      id: "black-bear", name: "Black Bear", emoji: "🐻", category: "Mammal", rarity: "Rare",
+      habitat: "Dense forests and mountain woodlands",
+      safety: "Impressive and powerful — always view bears from far away.",
+      facts: [
+        "Black bears can run up to 30 miles per hour in short bursts.",
+        "They're excellent tree climbers, even as full-grown adults.",
+        "A black bear's nose is so powerful it can sniff out food from over a mile away.",
+        "They spend winter in a deep sleep called torpor, living off stored body fat."
+      ],
+      hint: "Extremely rare to spot — try deep, quiet forest areas."
+    },
+    {
+      id: "gray-wolf", name: "Gray Wolf", emoji: "🐺", category: "Mammal", rarity: "Rare",
+      habitat: "Remote forests, mountains, and open tundra",
+      safety: "Wolves avoid people — thrilling but very rare to see in the wild.",
+      facts: [
+        "A wolf pack's howl can be heard from up to 6 miles away.",
+        "Wolves can trot for hours at around 5 miles per hour without tiring.",
+        "Each wolf has a unique howl, almost like a vocal fingerprint.",
+        "Packs work as a team to hunt, raise pups, and protect their territory."
+      ],
+      hint: "Super rare — listen for distant howls near wild, remote forests."
+    },
+    {
+      id: "great-horned-owl", name: "Great Horned Owl", emoji: "🦉", category: "Bird", rarity: "Uncommon",
+      habitat: "Forests, deserts, and even city parks",
+      safety: "A quiet, watchful hunter — admire it from below, not too close.",
+      facts: [
+        "Great horned owls can rotate their heads about 270 degrees.",
+        "Special feathers let them fly almost silently through the night.",
+        "Their grip is powerful enough to snap a small branch.",
+        "Their eyes don't move in their sockets, so they turn their whole head to look around."
+      ],
+      hint: 'Listen for a deep "hoo-hoo" call after sunset.'
+    },
+    {
+      id: "bald-eagle", name: "Bald Eagle", emoji: "🦅", category: "Bird", rarity: "Rare",
+      habitat: "Near rivers, lakes, and coastlines with tall trees",
+      safety: "A powerful, protected bird — always watch from a distance.",
+      facts: [
+        "A bald eagle's eyesight is about 4 times sharper than a human's.",
+        "They build huge nests that can weigh over 1,000 pounds.",
+        `Bald eagles aren't actually bald — the name comes from an old word meaning "white-headed."`,
+        "They can swoop down at speeds near 100 miles per hour to snatch fish."
+      ],
+      hint: "Scan the sky near big rivers or lakes — a rare and special sight!"
+    },
+    {
+      id: "honeybee", name: "Honeybee", emoji: "🐝", category: "Insect", rarity: "Common",
+      habitat: "Flower gardens, meadows, and orchards",
+      safety: "Helpful pollinators — give them space and they'll leave you be.",
+      facts: [
+        "A single bee colony can include up to 60,000 bees working together.",
+        'Bees "dance" in special patterns to tell each other where flowers are.',
+        "A honeybee visits roughly 50 to 100 flowers on a single trip out.",
+        "Bees fan their wings to keep the hive at a steady, cozy temperature."
+      ],
+      hint: "Buzzing around bright flowers in gardens and meadows."
+    },
+    {
+      id: "ladybug", name: "Ladybug", emoji: "🐞", category: "Insect", rarity: "Common",
+      habitat: "Gardens, farms, and grassy fields",
+      safety: "Completely harmless and great for gardens — a gardener's best friend.",
+      facts: [
+        "A single ladybug can eat thousands of plant-damaging aphids in its lifetime.",
+        "Their bright colors warn predators that they taste bitter.",
+        "Ladybugs can live for up to two or three years.",
+        "When threatened, some ladybugs release a stinky yellow fluid to scare off predators."
+      ],
+      hint: "Check the undersides of garden leaves for these colorful helpers."
+    },
+    {
+      id: "carpenter-ant", name: "Carpenter Ant", emoji: "🐜", category: "Insect", rarity: "Common",
+      habitat: "Forests with old or damp wood, sometimes near houses",
+      safety: "Mostly harmless to people, though a bite can give a little pinch.",
+      facts: [
+        "Carpenter ants can carry objects many times heavier than their own body.",
+        "They don't eat wood — they carve tunnels through it to build their nests.",
+        "A single colony can have thousands of ants working together as a team.",
+        "Ants leave invisible scent trails so nestmates can follow the path home."
+      ],
+      hint: "Look for tiny tunnels or sawdust piles near old logs."
+    },
+    {
+      id: "monarch-butterfly", name: "Monarch Butterfly", emoji: "🦋", category: "Insect", rarity: "Uncommon",
+      habitat: "Meadows, gardens, and milkweed patches",
+      safety: "Delicate and harmless — handle with care if one ever lands on you.",
+      facts: [
+        "Monarch butterflies can travel up to 3,000 miles during fall migration.",
+        "They taste bitter to predators thanks to chemicals from the milkweed they ate as caterpillars.",
+        "A monarch's wings are covered in thousands of tiny overlapping scales.",
+        "It takes about a month for a monarch to transform from egg to butterfly."
+      ],
+      hint: "Look for them fluttering near milkweed and bright wildflowers."
+    },
+    {
+      id: "firefly", name: "Firefly", emoji: "🪲", category: "Insect", rarity: "Uncommon",
+      habitat: "Damp meadows, woodland edges, and backyards at night",
+      safety: "Totally harmless — one of the best parts of summer nights.",
+      facts: [
+        "Fireflies make their glow through a chemical reaction called bioluminescence.",
+        "Each firefly species flashes its own special pattern to find a mate.",
+        "Firefly light is incredibly efficient and gives off almost no heat.",
+        `Firefly larvae glow too, which is why they're sometimes called "glowworms."`
+      ],
+      hint: "Watch for tiny glowing lights over grass on warm summer evenings."
+    },
+    {
+      id: "eastern-box-turtle", name: "Eastern Box Turtle", emoji: "🐢", category: "Reptile", rarity: "Uncommon",
+      habitat: "Woodlands, meadows, and damp forest floors",
+      safety: "Gentle and slow — safe to observe, but let it be if it hides.",
+      facts: [
+        "Eastern box turtles can live 50 years or more — some have even reached 100!",
+        "They can pull their head, legs, and tail completely inside their shell.",
+        "Each turtle's shell pattern is unique, almost like a fingerprint.",
+        "They often spend their whole lives in the same small patch of forest."
+      ],
+      hint: "Look low to the ground in damp, leafy forest areas."
+    },
+    {
+      id: "garden-spider", name: "Garden Spider", emoji: "🕷️", category: "Arachnid", rarity: "Uncommon",
+      habitat: "Gardens, tall grass, and shrubs",
+      safety: "Helpful bug-catchers — they'd much rather hide than bother you.",
+      facts: [
+        "Garden spiders can rebuild an entire web in less than an hour.",
+        "Their silk is incredibly strong for its size — stronger than steel of the same thickness.",
+        "Some garden spiders weave a thick zig-zag pattern called a stabilimentum into their web.",
+        "They have 8 eyes but mostly sense the world through vibrations on their web."
+      ],
+      hint: "Search for dewy webs strung between plants in early morning."
+    },
+    {
+      id: "american-toad", name: "American Toad", emoji: "🐸", category: "Amphibian", rarity: "Common",
+      habitat: "Gardens, damp woodlands, and near ponds",
+      safety: "Harmless to hold gently, but always wash your hands afterward.",
+      facts: [
+        "American toads can lay thousands of eggs at once in long jelly-like strings.",
+        "Their bumpy skin isn't warts, and it definitely won't give you any.",
+        "Toads can puff themselves up to look less appetizing to predators.",
+        "They eat huge numbers of insects, making them great garden helpers."
+      ],
+      hint: "Listen for a long musical trill near gardens after it rains."
+    }
+  ];
+
+  var RARITY_RANK = { Common: 1, Uncommon: 2, Rare: 3 };
+  var RARITY_WEIGHT = { Common: 6, Uncommon: 3, Rare: 1 };
+  var CATEGORY_ICON = { Mammal: "🐾", Bird: "🪶", Insect: "🐛", Reptile: "🦎", Arachnid: "🕸️", Amphibian: "💧", Fish: "🐟", Other: "🌟" };
+  var TOTAL = CRITTERS.length;
+
+  function critterById(id){
+    for (var i = 0; i < CRITTERS.length; i++){ if (CRITTERS[i].id === id) return CRITTERS[i]; }
+    for (var j = 0; j < discovered.length; j++){ if (discovered[j].id === id) return discovered[j]; }
+    return null;
+  }
+
+  function normalizeName(name){ return String(name).toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+
+  function critterByName(name){
+    var n = normalizeName(name);
+    for (var i = 0; i < CRITTERS.length; i++){ if (normalizeName(CRITTERS[i].name) === n) return CRITTERS[i]; }
+    for (var j = 0; j < discovered.length; j++){ if (normalizeName(discovered[j].name) === n) return discovered[j]; }
+    return null;
+  }
+
+  function slugify(name){ return String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(ch){
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+
+  /* ============ STORAGE ============ */
+  function loadJSON(key, fallback){
+    try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch (e) { return fallback; }
+  }
+  function saveJSON(key, value){
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+
+  var collection = loadJSON(STORAGE_KEY, {});      // { critterId: { collectedAt } }
+  var discovered = loadJSON(DISCOVERED_KEY, []);   // [ critter objects the AI discovered ]
+
+  function saveCollection(){ saveJSON(STORAGE_KEY, collection); }
+  function saveDiscovered(){ saveJSON(DISCOVERED_KEY, discovered); }
+
+  /* ============ STATE ============ */
+  var currentFilter = "All";
+  var pendingPhoto = null;        // dataURL of the captured/uploaded photo
+  var scanState = "perm";         // perm | live | captured | loading
+  var revealedCritter = null;
+  var revealedIsNew = false;
+  var loadingInterval = null;
+  var cameraStream = null;
+  var facingMode = "environment"; // back camera first — that's where the critters are
+  var cameraSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  /* ============ DOM REFS ============ */
+  var screens = document.querySelectorAll(".screen");
+  var tabButtons = document.querySelectorAll(".tab-btn");
+
+  var progressFill = document.getElementById("progress-fill");
+  var progressLabel = document.getElementById("progress-label");
+  var completeBanner = document.getElementById("complete-banner");
+
+  var scanPerm = document.getElementById("scan-perm");
+  var enableCameraBtn = document.getElementById("enable-camera-btn");
+  var scanVideo = document.getElementById("scan-video");
+  var scanPreviewImg = document.getElementById("scan-preview-img");
+  var scanSpinner = document.getElementById("scan-spinner");
+  var flipBtn = document.getElementById("flip-btn");
+  var shutterBtn = document.getElementById("shutter-btn");
+  var capturedActions = document.getElementById("captured-actions");
+  var retakeBtn = document.getElementById("retake-btn");
+  var scanItBtn = document.getElementById("scan-it-btn");
+  var uploadLink = document.getElementById("upload-link");
+  var pretendLink = document.getElementById("pretend-link");
+  var photoInput = document.getElementById("photo-input");
+  var scanStatus = document.getElementById("scan-status");
+  var modeBanner = document.getElementById("mode-banner");
+  var aiCaption = document.getElementById("ai-caption");
+  var discoveredLine = document.getElementById("discovered-line");
+  var discoveredChip = document.getElementById("discovered-chip");
+
+  var resultOverlay = document.getElementById("result-overlay");
+  var resultPhoto = document.getElementById("result-photo");
+  var resultEmojiFallback = document.getElementById("result-emoji-fallback");
+  var newBadge = document.getElementById("new-badge");
+  var resultName = document.getElementById("result-name");
+  var resultRarity = document.getElementById("result-rarity");
+  var resultCategory = document.getElementById("result-category");
+  var resultHabitat = document.getElementById("result-habitat");
+  var resultSafety = document.getElementById("result-safety");
+  var resultFacts = document.getElementById("result-facts");
+  var alreadyHaveNote = document.getElementById("already-have-note");
+  var addCollectionBtn = document.getElementById("add-collection-btn");
+  var confettiZone = document.getElementById("confetti-zone");
+
+  var collectionSummary = document.getElementById("collection-summary");
+  var collectionGrid = document.getElementById("collection-grid");
+  var filterRow = document.getElementById("filter-row");
+  var resetBtn = document.getElementById("reset-btn");
+
+  /* ============ NAVIGATION ============ */
+  function switchScreen(name){
+    screens.forEach(function(s){ s.classList.toggle("active", s.id === "screen-" + name); });
+    tabButtons.forEach(function(b){ b.classList.toggle("active", b.dataset.screen === name); });
+    var activeScreen = document.getElementById("screen-" + name);
+    if (activeScreen) activeScreen.scrollTop = 0;
+    if (name !== "scan") resetScanUI();  // stop the camera when leaving the Scan tab
+    if (name === "collection") renderCollection();
+    if (name === "home") renderHome();
+  }
+  tabButtons.forEach(function(b){
+    b.addEventListener("click", function(){ switchScreen(b.dataset.screen); });
+  });
+  document.getElementById("home-scan-btn").addEventListener("click", function(){ switchScreen("scan"); });
+
+  /* ============ HOME RENDER ============ */
+  function baseFoundCount(){
+    var c = 0;
+    CRITTERS.forEach(function(cr){ if (collection[cr.id]) c++; });
+    return c;
+  }
+  function discoveredCount(){
+    var c = 0;
+    discovered.forEach(function(cr){ if (collection[cr.id]) c++; });
+    return c;
+  }
+
+  function renderHome(){
+    var found = baseFoundCount();
+    progressFill.style.width = (found / TOTAL * 100) + "%";
+    progressLabel.textContent = found + " / " + TOTAL + " Found";
+    completeBanner.hidden = found < TOTAL;
+    var n = discoveredCount();
+    discoveredLine.hidden = n === 0;
+    discoveredLine.textContent = "✨ +" + n + " new species discovered!";
+  }
+
+  /* ============ SCAN FLOW ============ */
+  function setScanState(state){
+    scanState = state;
+    scanPerm.hidden = state !== "perm";
+    scanVideo.hidden = state !== "live";
+    flipBtn.hidden = state !== "live";
+    shutterBtn.hidden = state !== "live";
+    scanPreviewImg.hidden = state !== "captured" && state !== "loading";
+    scanSpinner.hidden = state !== "loading";
+    capturedActions.hidden = state !== "captured";
+    uploadLink.hidden = state === "loading";
+    // In demo mode the pretend scan is always on offer; in AI mode it only
+    // appears after an error (revealed explicitly there).
+    pretendLink.hidden = aiReady() || state === "loading";
+  }
+
+  function showPermState(){
+    setScanState("perm");
+    enableCameraBtn.disabled = false;
+    enableCameraBtn.textContent = "📸 Start Camera";
+    enableCameraBtn.hidden = !cameraSupported;
+    scanStatus.textContent = cameraSupported
+      ? "Tap the button to open your camera"
+      : "No camera here — upload a photo instead!";
+  }
+
+  function resetScanUI(){
+    stopCamera();
+    clearInterval(loadingInterval);
+    pendingPhoto = null;
+    photoInput.value = "";
+    showPermState();
+  }
+
+  function stopCamera(){
+    if (cameraStream){
+      cameraStream.getTracks().forEach(function(t){ t.stop(); });
+      cameraStream = null;
+    }
+    scanVideo.srcObject = null;
+  }
+
+  async function startCamera(){
+    stopCamera();
+    var stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: facingMode },
+      audio: false
+    });
+    cameraStream = stream;
+    scanVideo.srcObject = stream;
+    await scanVideo.play();
+    // Mirror the front camera so it feels like a mirror; back camera stays natural
+    scanVideo.classList.toggle("mirrored", facingMode === "user");
+  }
+
+  enableCameraBtn.addEventListener("click", async function(){
+    // iOS Safari only allows the camera to start from a real tap like this one
+    enableCameraBtn.disabled = true;
+    enableCameraBtn.textContent = "Opening…";
+    try {
+      await startCamera();
+      setScanState("live");
+      scanStatus.textContent = "Point at a critter and tap the gold button!";
+    } catch (e) {
+      enableCameraBtn.disabled = false;
+      enableCameraBtn.textContent = "📸 Start Camera";
+      scanStatus.textContent = (e && e.name === "NotAllowedError")
+        ? "Camera was blocked — allow it in your browser settings, or upload a photo below."
+        : "Couldn't open the camera — try uploading a photo instead.";
+    }
+  });
+
+  flipBtn.addEventListener("click", async function(){
+    if (scanState !== "live") return;
+    facingMode = facingMode === "environment" ? "user" : "environment";
+    try {
+      await startCamera();
+    } catch (e) {
+      // That camera doesn't exist on this device — flip back
+      facingMode = facingMode === "environment" ? "user" : "environment";
+      await startCamera().catch(function(){});
+      scanStatus.textContent = "That camera isn't available on this device.";
+    }
+  });
+
+  shutterBtn.addEventListener("click", function(){
+    if (scanState !== "live" || !scanVideo.videoWidth) return;
+    // Downscale to ≤1024px so AI scans stay fast (and cheap)
+    var w = scanVideo.videoWidth, h = scanVideo.videoHeight;
+    var scale = Math.min(1, 1024 / Math.max(w, h));
+    var canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    var ctx = canvas.getContext("2d");
+    // Un-mirror the front camera so the saved photo matches reality
+    if (facingMode === "user"){ ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(scanVideo, 0, 0, canvas.width, canvas.height);
+    pendingPhoto = canvas.toDataURL("image/jpeg", 0.8);
+    stopCamera();
+    scanPreviewImg.src = pendingPhoto;
+    setScanState("captured");
+    scanStatus.textContent = 'Great shot! Hit "Scan It!" when ready.';
+  });
+
+  retakeBtn.addEventListener("click", async function(){
+    pendingPhoto = null;
+    try {
+      await startCamera();
+      setScanState("live");
+      scanStatus.textContent = "Point at a critter and tap the gold button!";
+    } catch (e) {
+      resetScanUI();
+    }
+  });
+
+  uploadLink.addEventListener("click", function(e){
+    e.preventDefault();
+    if (scanState === "loading") return;
+    photoInput.value = "";
+    photoInput.click();
+  });
+
+  photoInput.addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      // Shrink big photos the same way the camera does
+      var img = new Image();
+      img.onload = function(){
+        var scale = Math.min(1, 1024 / Math.max(img.width, img.height));
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        pendingPhoto = canvas.toDataURL("image/jpeg", 0.8);
+        stopCamera();
+        scanPreviewImg.src = pendingPhoto;
+        setScanState("captured");
+        scanStatus.textContent = 'Great shot! Hit "Scan It!" when ready.';
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  scanItBtn.addEventListener("click", function(){
+    if (scanState !== "captured" || !pendingPhoto) return;
+    startScanLoading();
+  });
+
+  pretendLink.addEventListener("click", function(e){
+    e.preventDefault();
+    if (scanState === "loading") return;
+    stopCamera();
+    revealCritter(weightedRandomCritter(), { ai: false });
+  });
+
+  var LOADING_MESSAGES = ["🔍 Looking closely…", "🧠 Thinking hard…", "🌿 Comparing patterns…", "✨ Almost got it…"];
+  function startScanLoading(){
+    setScanState("loading");
+    var i = 0;
+    scanStatus.textContent = LOADING_MESSAGES[0];
+    loadingInterval = setInterval(function(){
+      i = (i + 1) % LOADING_MESSAGES.length;
+      scanStatus.textContent = LOADING_MESSAGES[i];
+    }, 550);
+
+    if (aiReady()){
+      var started = Date.now();
+      identifyWithClaude(pendingPhoto).then(function(idData){
+        // Let the scanning animation breathe for at least a second
+        var wait = Math.max(0, 1200 - (Date.now() - started));
+        setTimeout(function(){
+          clearInterval(loadingInterval);
+          handleIdentification(idData);
+        }, wait);
+      }).catch(function(){
+        clearInterval(loadingInterval);
+        setScanState("captured");
+        scanStatus.textContent = "😵 The AI scanner hit a snag — check your internet and try again.";
+        pretendLink.hidden = false;
+      });
+    } else {
+      // Demo mode: pretend to think, then pick a random critter
+      setTimeout(function(){
+        clearInterval(loadingInterval);
+        revealCritter(weightedRandomCritter(), { ai: false });
+      }, 2200);
+    }
+  }
+
+  function handleIdentification(idData){
+    if (!idData || !idData.is_animal){
+      setScanState("captured");
+      scanStatus.textContent = "🔍 No critter spotted — get closer and try again!";
+      return;
+    }
+    var critter = critterByName(idData.name) || createDiscovered(idData);
+    revealCritter(critter, { ai: true });
+  }
+
+  function createDiscovered(idData){
+    return {
+      id: "d-" + slugify(idData.name),
+      name: idData.name,
+      emoji: idData.emoji || "🐾",
+      category: CATEGORY_ICON[idData.category] ? idData.category : "Other",
+      rarity: RARITY_RANK[idData.rarity] ? idData.rarity : "Common",
+      habitat: idData.habitat || "",
+      safety: idData.safety || "",
+      facts: (idData.facts || []).slice(0, 4),
+      hint: idData.hint || "",
+      isDiscovered: true,
+      unsaved: true   // only persisted once it's added to the collection
+    };
+  }
+
+  function weightedRandomCritter(){
+    var pool = [];
+    CRITTERS.forEach(function(c){
+      var w = RARITY_WEIGHT[c.rarity] || 1;
+      for (var i = 0; i < w; i++) pool.push(c);
+    });
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  /* ============ RESULT REVEAL ============ */
+  function revealCritter(critter, opts){
+    revealedCritter = critter;
+    revealedIsNew = !collection[critter.id];
+
+    // restore the scan screen behind the overlay so closing feels natural
+    if (pendingPhoto){
+      setScanState("captured");
+      scanStatus.textContent = "Tap Retake to scan another critter!";
+    } else {
+      showPermState();
+    }
+
+    // populate overlay
+    if (pendingPhoto){
+      resultPhoto.src = pendingPhoto;
+      resultPhoto.hidden = false;
+      resultEmojiFallback.hidden = true;
+    } else {
+      resultPhoto.hidden = true;
+      resultEmojiFallback.hidden = false;
+      resultEmojiFallback.textContent = critter.emoji;
+    }
+
+    aiCaption.hidden = !(opts && opts.ai);
+    newBadge.hidden = !revealedIsNew;
+    resultName.textContent = critter.name;
+    resultRarity.textContent = critter.rarity;
+    resultRarity.className = "rarity-pill rarity-" + critter.rarity.toLowerCase();
+    resultCategory.textContent = (CATEGORY_ICON[critter.category] || "🐾") + " " + critter.category;
+    resultHabitat.textContent = critter.habitat;
+    resultSafety.textContent = critter.safety;
+    resultFacts.innerHTML = critter.facts.map(function(f){ return "<li>" + esc(f) + "</li>"; }).join("");
+
+    if (revealedIsNew){
+      addCollectionBtn.hidden = false;
+      addCollectionBtn.disabled = false;
+      addCollectionBtn.textContent = "✚ Add to Collection";
+      alreadyHaveNote.hidden = true;
+    } else {
+      addCollectionBtn.hidden = true;
+      alreadyHaveNote.hidden = false;
+    }
+
+    openResultOverlay();
+  }
+
+  function openResultOverlay(){ resultOverlay.classList.add("open"); }
+  function closeResultOverlay(){ resultOverlay.classList.remove("open"); }
+
+  addCollectionBtn.addEventListener("click", function(){
+    if (!revealedCritter) return;
+    if (revealedCritter.unsaved){
+      delete revealedCritter.unsaved;
+      discovered.push(revealedCritter);
+      saveDiscovered();
+    }
+    collection[revealedCritter.id] = { collectedAt: new Date().toISOString() };
+    saveCollection();
+    fireConfetti();
+    addCollectionBtn.disabled = true;
+    addCollectionBtn.textContent = "✓ Added to Your Collection!";
+    revealedIsNew = false;
+    renderHome();
+    renderCollection();
+  });
+
+  document.getElementById("result-close-btn").addEventListener("click", closeResultOverlay);
+  resultOverlay.addEventListener("click", function(e){
+    if (e.target === resultOverlay) closeResultOverlay();
+  });
+  document.getElementById("scan-another-btn").addEventListener("click", function(){
+    closeResultOverlay();
+    resetScanUI();
+  });
+  document.getElementById("result-done-btn").addEventListener("click", function(){
+    closeResultOverlay();
+    switchScreen("collection");
+  });
+
+  function fireConfetti(){
+    confettiZone.querySelectorAll(".confetti-piece").forEach(function(p){ p.remove(); });
+    var colors = ["#e9c468", "#f7da8e", "#f4efe0", "#8fd19e"];
+    for (var i = 0; i < 16; i++){
+      var span = document.createElement("span");
+      span.className = "confetti-piece";
+      var angle = Math.random() * Math.PI * 2;
+      var dist = 50 + Math.random() * 70;
+      span.style.setProperty("--tx", Math.cos(angle) * dist + "px");
+      span.style.setProperty("--ty", Math.sin(angle) * dist + "px");
+      span.style.background = colors[i % colors.length];
+      span.style.left = "50%";
+      span.style.top = "50%";
+      confettiZone.appendChild(span);
+    }
+    setTimeout(function(){
+      confettiZone.querySelectorAll(".confetti-piece").forEach(function(p){ p.remove(); });
+    }, 850);
+  }
+
+  /* ============ COLLECTION RENDER ============ */
+  filterRow.addEventListener("click", function(e){
+    var chip = e.target.closest(".filter-chip");
+    if (!chip) return;
+    currentFilter = chip.dataset.filter;
+    filterRow.querySelectorAll(".filter-chip").forEach(function(c){ c.classList.toggle("active", c === chip); });
+    renderCollection();
+  });
+
+  function renderCollection(){
+    var found = baseFoundCount();
+    var n = discoveredCount();
+
+    discoveredChip.hidden = n === 0;
+    if (currentFilter === "Discovered" && n === 0) currentFilter = "All";
+    filterRow.querySelectorAll(".filter-chip").forEach(function(ch){
+      ch.classList.toggle("active", ch.dataset.filter === currentFilter);
+    });
+
+    var summary = found === TOTAL
+      ? "🎉 You found all " + TOTAL + " critters!"
+      : "You've found " + found + " of " + TOTAL + " — " + (TOTAL - found) + " left to discover!";
+    if (n > 0) summary += " ✨ Plus " + n + " brand-new species!";
+    collectionSummary.textContent = summary;
+
+    var all = CRITTERS.concat(discovered);
+    var list;
+    if (currentFilter === "All") list = all;
+    else if (currentFilter === "Discovered") list = discovered.slice();
+    else list = all.filter(function(c){ return c.category === currentFilter; });
+
+    collectionGrid.innerHTML = list.map(function(c){
+      var got = collection[c.id];
+      var rank = RARITY_RANK[c.rarity] || 1;
+      var stars = "★".repeat(rank) + "☆".repeat(3 - rank);
+      var sparkle = c.isDiscovered ? '<div class="critter-sparkle">✨</div>' : "";
+      if (got){
+        return '<div class="critter-card found rarity-' + c.rarity.toLowerCase() + '-card">' + sparkle +
+          '<div class="critter-emoji">' + esc(c.emoji) + "</div>" +
+          '<div class="critter-name">' + esc(c.name) + "</div>" +
+          '<div class="critter-stars">' + stars + "</div>" +
+          "</div>";
+      }
+      return '<div class="critter-card missing">' +
+        '<div class="critter-emoji placeholder">❓</div>' +
+        '<div class="critter-name">???</div>' +
+        '<div class="critter-hint">' + esc(c.hint) + "</div>" +
+        "</div>";
+    }).join("");
+  }
+
+  resetBtn.addEventListener("click", function(){
+    if (confirm("Reset your whole collection? This can't be undone!")){
+      collection = {};
+      discovered = [];
+      saveCollection();
+      saveDiscovered();
+      currentFilter = "All";
+      renderHome();
+      renderCollection();
+    }
+  });
+
+  /* ============ INIT ============ */
+  function renderModeBanner(){
+    modeBanner.innerHTML = aiReady()
+      ? '🤖 AI Mode <span class="dim">— real scans powered by Claude</span>'
+      : '🧪 Demo Mode <span class="dim">— scans are pretend, just for fun!</span>';
+  }
+
+  renderModeBanner();
+  resetScanUI();
+  renderHome();
+  renderCollection();
+})();
+</script>
+</body>
+</html>
