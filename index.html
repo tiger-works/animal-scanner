@@ -66,6 +66,7 @@
 
   /* ============ APP SHELL ============ */
   .app-shell {
+    width: 100%;
     max-width: 480px;
     margin: 0 auto;
     height: 100vh;
@@ -468,6 +469,10 @@
   .critter-card.found.rarity-rare-card{ border-top-color: var(--rare); box-shadow: 0 0 18px rgba(233,198,104,0.12); }
   .critter-emoji{ font-size: 34px; line-height: 1; }
   .critter-emoji.placeholder{ opacity: 0.3; font-size: 30px; }
+  .critter-photo{
+    width: 58px; height: 58px; border-radius: 14px;
+    object-fit: cover; border: 1px solid var(--line-strong);
+  }
   .critter-name{ font-weight: 800; font-size: 0.78rem; color: var(--parchment); }
   .critter-card.missing .critter-name{ color: var(--ink-faint); }
   .critter-stars{ font-size: 0.68rem; letter-spacing: 1px; }
@@ -1070,6 +1075,7 @@
   /* ============ STATE ============ */
   var currentFilter = "All";
   var pendingPhoto = null;        // dataURL of the captured/uploaded photo
+  var pendingThumb = null;        // small version saved onto the collection card
   var scanState = "perm";         // perm | live | captured | loading
   var revealedCritter = null;
   var revealedIsNew = false;
@@ -1191,8 +1197,19 @@
     stopCamera();
     clearInterval(loadingInterval);
     pendingPhoto = null;
+    pendingThumb = null;
     photoInput.value = "";
     showPermState();
+  }
+
+  // Tiny copy of the photo (≈10-20KB) that gets saved onto the collection card
+  function makeThumb(sourceCanvas){
+    var s = Math.min(1, 224 / Math.max(sourceCanvas.width, sourceCanvas.height));
+    var c = document.createElement("canvas");
+    c.width = Math.round(sourceCanvas.width * s);
+    c.height = Math.round(sourceCanvas.height * s);
+    c.getContext("2d").drawImage(sourceCanvas, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.72);
   }
 
   function stopCamera(){
@@ -1259,6 +1276,7 @@
     if (facingMode === "user"){ ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(scanVideo, 0, 0, canvas.width, canvas.height);
     pendingPhoto = canvas.toDataURL("image/jpeg", 0.8);
+    pendingThumb = makeThumb(canvas);
     stopCamera();
     scanPreviewImg.src = pendingPhoto;
     setScanState("captured");
@@ -1267,6 +1285,7 @@
 
   retakeBtn.addEventListener("click", async function(){
     pendingPhoto = null;
+    pendingThumb = null;
     try {
       await startCamera();
       setScanState("live");
@@ -1297,6 +1316,7 @@
         canvas.height = Math.round(img.height * scale);
         canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         pendingPhoto = canvas.toDataURL("image/jpeg", 0.8);
+        pendingThumb = makeThumb(canvas);
         stopCamera();
         scanPreviewImg.src = pendingPhoto;
         setScanState("captured");
@@ -1445,7 +1465,11 @@
       discovered.push(revealedCritter);
       saveDiscovered();
     }
-    collection[revealedCritter.id] = { collectedAt: new Date().toISOString() };
+    collection[revealedCritter.id] = {
+      collectedAt: new Date().toISOString(),
+      // keep the kid's photo on the card (skip if it's oddly huge, to protect storage)
+      photo: (pendingThumb && pendingThumb.length < 80000) ? pendingThumb : null
+    };
     saveCollection();
     fireConfetti();
     addCollectionBtn.disabled = true;
@@ -1525,8 +1549,11 @@
       var stars = "★".repeat(rank) + "☆".repeat(3 - rank);
       var sparkle = c.isDiscovered ? '<div class="critter-sparkle">✨</div>' : "";
       if (got){
+        var visual = got.photo
+          ? '<img class="critter-photo" src="' + got.photo + '" alt="Your photo of ' + esc(c.name) + '">'
+          : '<div class="critter-emoji">' + esc(c.emoji) + "</div>";
         return '<div class="critter-card found rarity-' + c.rarity.toLowerCase() + '-card">' + sparkle +
-          '<div class="critter-emoji">' + esc(c.emoji) + "</div>" +
+          visual +
           '<div class="critter-name">' + esc(c.name) + "</div>" +
           '<div class="critter-stars">' + stars + "</div>" +
           "</div>";
